@@ -16,19 +16,21 @@ def error_handler(e):
         code = 500
     return jsonify(error=code, text=str(e)), code
 
+def gen_html(header, body=""):
+    return "<center><h1>{}</h1><h2>{}</h2></center>".format(header, body)
+
 def err_resp(json=True, **kwargs):
     response = jsonify(**kwargs) if json else make_response(**kwargs)
     response.status_code = kwargs["error"] if "error" in kwargs else 500
     return response
 
-def airgram_check(email, id):
-    resp = requests.post("https://api.airgramapp.com/1/send_as_guest", data={'email': email, 'msg': "Hi! You've been added to Question. Swipe here to verify", "url": URL + "/verify/" + id}, verify=False).json()
-    return resp["status"] != "ok", resp
+def airgram_check(email, id, msg="Hi! You've been added to Question. Swipe here to verify"):
+    resp = requests.post("https://api.airgramapp.com/1/send_as_guest", data={'email': email, 'msg': msg, "url": URL + "/verify/" + id}, verify=False).json()
+    return resp["status"] != "error", resp["error_msg"] if "error_msg" in resp else None
 
 def airgram_send(**kwargs):
     resp = requests.post("https://api.airgramapp.com/1/send_as_guest", data=kwargs, verify=False).json()
-    return resp["status"] == "ok", resp
-
+    return resp["status"] != "error", resp["error_msg"] if "error_msg" in resp else None
 
 @app.route("/verify/<id>")
 def verify_id(id):
@@ -37,9 +39,32 @@ def verify_id(id):
     if id in VERIFY and VERIFY[id] in USERS:
         USERS[VERIFY[id]]["verified"] = True
         del VERIFY[id]
-        return make_response("<center><h1>VERIFIED</h1><h2>Feel free to close this window now</h2></center>")
+        return gen_html("VERIFIED", "Feel free to close this page now :)")
     else:
-        return err_resp(json=False, error=404, text="<center><h1>NOT VERIFIED</h1><h2>ID not found. Maybe you've already verified?</h2></center>")
+        return err_resp(json=False, error=404, text=gen_html("NOT VERIFIED", "ID not found. Maybe you've already verified?"))
+
+@app.route("/yes/<id>")
+def yes(id):
+    global PENDING
+    global USERS
+    if id in PENDING:
+        airgram_send(email=USERS[PENDING[id]["from"]]["email"],
+                     msg="{to} replied Yes to: {text}".format(**PENDING[id]))
+        return gen_html("REPLY SENT")
+    else:
+        return err_resp(json=False, error=404, text=gen_html("ALREADY REPLIED"))
+
+@app.route("/no/<id>")
+def no(id):
+    global PENDING
+    global USERS
+    if id in PENDING:
+        airgram_send(email=USERS[PENDING[id]["from"]]["email"],
+                     msg="{to} replied No to: {text}".format(**PENDING[id]))
+        return gen_html("REPLY SENT")
+    else:
+        return err_resp(json=False, error=404, text=gen_html("ALREADY REPLIED"))
+
 
 @app.route("/send/<nick>")
 def send_question(nick):
@@ -49,15 +74,16 @@ def send_question(nick):
         if not nick in USERS or not USERS.get(nick, {}).get('verified', False):
             return err_resp(error=404, text="Destination user not found or not yet verified")
         if not request.args['from'] in USERS or not USERS.get(request.args['from'], {}).get('verified', False):
-            return err_resp(error=404, text="Source user not found or not yet verified")
+            reverify(request.args['from'])
+            return err_resp(error=404, text="Source user not found or not yet verified (verification msg sent if exists)")
         id = shortuuid.uuid()
         PENDING[id] = {'to': nick, 'from': request.args['from'], 'text': request.args['text'], 'ts': time.time()}
-        first, _f = airgram_send(email=USERS[nick]["email"], msg="Question from {from} : Yes | {text}".format(**request.args), url=URL + "/yes/" + id)
-        second, _s = airgram_send(email=USERS[nick]["email"], msg="Question from {from} : Yes | {text}".format(**request.args), url=URL + "/no/" + id)
+        first, _f = airgram_send(email=USERS[nick]["email"], msg="Question from {} : No | {}".format(request.args["from"], request.args["text"]), url=URL + "/no/" + id)
+        second, _s = airgram_send(email=USERS[nick]["email"], msg="Question from {} : Yes | {}".format(request.args["from"], request.args["text"]), url=URL + "/yes/" + id)
         if first and second:
             return jsonify(status="ok")
         elif (first and not second) or (second and not first):
-            _ = airgram_send(email=USERS[nick]["email"], msg="Oops! Can't send {} message. Please contact {} ASAP.".format("first" if second else "second", request.args['from']))
+            _ = airgram_send(email=USERS[nick]["email"], msg="Oops! Can't send {} message. Please contact {} ASAP.".format("NO" if second else "YES", request.args['from']))
             return err_resp(error=504, text="{} message didn't send, please contact {} directly (they may be contacting you also)".format("First" if second else "Second", nick))
         else:
             return err_resp(error=504, text="Messages could not be sent, please notify blha303 at b3@blha303.com.au and contact {} directly at {}".format(nick, USERS[nick]["email"]))
@@ -74,11 +100,12 @@ def add_user(nick):
     elif 'email' in request.args:
         id = shortuuid.uuid()
         VERIFY[id] = nick
-        if airgram_check(request.args['email'], id):
+        exists, err = airgram_check(request.args['email'], id)
+        if exists:
             USERS[nick] = {'email': request.args["email"], 'verified': False, 'reg': time.time()}
             return jsonify(status="ok")
         else:
-            return err_resp(error=404, text="No Airgram account for specified email address, please create account at airgramapp.com")
+            return err_resp(error=404, text="{} airgramapp.com".format(err))
     else:
         return err_resp(error=400, text="Invalid or missing email address")
 
@@ -86,7 +113,7 @@ def add_user(nick):
 def reverify(nick):
     id = shortuuid.uuid()
     VERIFY[id] = nick
-    if airgram_check(USERS[nick]["email"], id):
+    if airgram_check(USERS[nick]["email"], id, msg="Please reverify your Airgram account for Question. Swipe here to verify"):
         return jsonify(status="ok")
     else:
         return err_resp(error=404, text="An error occured while verifying your Airgram account.")
