@@ -1,3 +1,17 @@
+#!/usr/bin/env python2
+#Copyright (c) 2015, Steven Smith (blha303)
+#All rights reserved.
+#
+#Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#
+#1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+#
+#2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+#
+#THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#Updates at https://github.com/blha303/question
+
 from flask import Flask, request, jsonify, make_response
 import json, requests, logging, time, jsondict, gzip, shortuuid
 
@@ -71,11 +85,11 @@ def send_question(nick):
     global USERS
     global PENDING
     if nick and 'text' in request.args and 'from' in request.args:
-        if not nick in USERS or not USERS.get(nick, {}).get('verified', False):
-            return err_resp(error=404, text="Destination user not found or not yet verified")
         if not request.args['from'] in USERS or not USERS.get(request.args['from'], {}).get('verified', False):
             reverify(request.args['from'])
             return err_resp(error=404, text="Source user not found or not yet verified (verification msg sent if exists)")
+        if not nick in USERS or not USERS.get(nick, {}).get('verified', False):
+            return err_resp(error=404, text="Destination user not found or not yet verified")
         id = shortuuid.uuid()
         PENDING[id] = {'to': nick, 'from': request.args['from'], 'text': request.args['text'], 'ts': time.time()}
         first, _f = airgram_send(email=USERS[nick]["email"], msg="Question from {} : No | {}".format(request.args["from"], request.args["text"]), url=URL + "/no/" + id)
