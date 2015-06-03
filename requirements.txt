@@ -1,0 +1,4 @@
+Flask==0.10.1
+jsondict==1.2
+requests==2.7.0
+shortuuid==0.4.2
