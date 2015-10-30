@@ -1,0 +1,7 @@
+{
+  "name": "question",
+  "description": "A Flask web server for quickly asking someone a question.",
+  "repository": "https://github.com/blha303/question",
+  "website": "https://github.com/blha303/question",
+  "keywords": ["http", "rest", "API", "python", "flask"]
+}
