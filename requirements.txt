@@ -1,4 +1,10 @@
+asjson==1.2.1
 Flask==0.10.1
+gunicorn==19.3.0
+itsdangerous==0.24
+Jinja2==2.8
 jsondict==1.2
+MarkupSafe==0.23
 requests==2.7.0
 shortuuid==0.4.2
+Werkzeug==0.10.
