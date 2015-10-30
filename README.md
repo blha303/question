@@ -1,6 +1,8 @@
 Question
 ========
 
+[![Deploy](https://www.herokucdn.com/deploy/button.png)](https://heroku.com/deploy)
+
 A Flask web server for quickly asking someone a question. Uses [Airgram](http://www.airgramapp.com) for push notification functionality, so users need to make accounts there.
 
 Currently backend JSON api only. Feel free to implement your own frontend around the API using your own instance.
